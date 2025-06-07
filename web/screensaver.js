@@ -17,7 +17,13 @@ function quitApp() {
 
 //quit when a key is pressed
 document.addEventListener('keydown', (e) => {
-    electron.ipcRenderer.send('keyPress', e.code);
+    if (e.code === 'ArrowRight') {
+        electron.ipcRenderer.send('cycleVideo', 'next');
+    } else if (e.code === 'ArrowLeft') {
+        electron.ipcRenderer.send('cycleVideo', 'prev');
+    } else {
+        electron.ipcRenderer.send('keyPress', e.code);
+    }
 });
 document.addEventListener('mousedown', quitApp);
 setTimeout(function () {
@@ -61,12 +67,13 @@ function videoError(event) {
     }
 }
 
-function prepVideo(videoContainer, callback) {
+function prepVideo(videoContainer, callback, forcedId) {
     if (blackScreen) {
         return
     }
     containers[videoContainer].src = "";
-    electron.ipcRenderer.invoke('newVideoId', currentlyPlaying).then((id) => {
+    let idPromise = forcedId ? Promise.resolve(forcedId) : electron.ipcRenderer.invoke('newVideoId', currentlyPlaying);
+    idPromise.then((id) => {
         let videoInfo, videoSRC;
         //grab video info and file location based on whether it is a custom video or not
         if (id[0] === "_") {
@@ -135,6 +142,21 @@ function newVideo() {
                 }, 1000);
             });
         }, 500);
+    });
+}
+
+function previousVideo() {
+    electron.ipcRenderer.invoke('previousVideoId').then((id) => {
+        if (!id) return;
+        prepVideo(prePlayer, () => {
+            clearTimeout(videoWaitingTimeout);
+            videoWaitingTimeout = setTimeout(() => {
+                playVideo(prePlayer, () => {
+                    clearTimeout(transitionTimeout);
+                    fadeVideoIn(transitionLength);
+                });
+            }, 500);
+        }, id);
     });
 }
 
@@ -701,6 +723,10 @@ newVideo();
 
 electron.ipcRenderer.on('newVideo', () => {
     newVideo();
+});
+
+electron.ipcRenderer.on('previousVideo', () => {
+    previousVideo();
 });
 
 electron.ipcRenderer.on('blankTheScreen', () => {

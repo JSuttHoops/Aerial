@@ -35,6 +35,8 @@ let downloading = false;
 let allowedVideos = store.get("allowedVideos");
 let previouslyPlayed = [];
 let currentlyPlaying = '';
+let videoHistory = [];
+let historyIndex = -1;
 let preview = false;
 let suspend = false;
 let suspendCountdown;
@@ -485,6 +487,7 @@ function setUpConfigFile() {
     store.set('textFont', store.get('textFont') ?? "Segoe UI");
     store.set('textSize', store.get('textSize') ?? "2");
     store.set('textColor', store.get('textColor') ?? "#FFFFFF");
+    store.set('accentColor', store.get('accentColor') ?? "#ff5722");
     let displayText = store.get('displayText');
     if (displayText) {
         if (!displayText.topleft[0]) {
@@ -542,12 +545,32 @@ ipcMain.on('quitApp', (event, arg) => {
 });
 
 ipcMain.on('keyPress', (event, key) => {
-    if (key === store.get('skipKey') && store.get('skipVideosWithKey')) {
+    if (key === 'ArrowRight') {
+        for (let i = 0; i < screens.length; i++) {
+            screens[i].webContents.send('newVideo');
+        }
+    } else if (key === 'ArrowLeft') {
+        for (let i = 0; i < screens.length; i++) {
+            screens[i].webContents.send('previousVideo');
+        }
+    } else if (key === store.get('skipKey') && store.get('skipVideosWithKey')) {
         for (let i = 0; i < screens.length; i++) {
             screens[i].webContents.send('newVideo');
         }
     } else {
         quitApp();
+    }
+});
+
+ipcMain.on('cycleVideo', (event, direction) => {
+    if (direction === 'next') {
+        for (let i = 0; i < screens.length; i++) {
+            screens[i].webContents.send('newVideo');
+        }
+    } else if (direction === 'prev') {
+        for (let i = 0; i < screens.length; i++) {
+            screens[i].webContents.send('previousVideo');
+        }
     }
 });
 
@@ -712,6 +735,17 @@ ipcMain.handle('newVideoId', (event, lastPlayed) => {
         }
     }
     currentlyPlaying = newId();
+    videoHistory = videoHistory.slice(0, historyIndex + 1);
+    videoHistory.push(currentlyPlaying);
+    historyIndex = videoHistory.length - 1;
+    return currentlyPlaying;
+})
+
+ipcMain.handle('previousVideoId', () => {
+    if (historyIndex > 0) {
+        historyIndex--;
+        currentlyPlaying = videoHistory[historyIndex];
+    }
     return currentlyPlaying;
 })
 
